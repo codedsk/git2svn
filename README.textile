@@ -11,6 +11,8 @@ h2. Options
 -g &lt;url&gt; - clone the Git repository at https &lt;url&gt;
 -s &lt;url&gt; - commit to the Subversion repository at &lt;url&gt;
 -c &lt;path&gt; - use the credentials stored in the configuration file at &lt;path&gt;
+-p &lt;path&gt; - project name base for temp directories
+-r &lt;path&gt; - temp directory base for cloned git repo and checked out svn repo. this directory must exist.
 
 Temporary directories will be created, in the pwd, to store the Git and Subversion repositories.
 They will be deleted after a successful commit.

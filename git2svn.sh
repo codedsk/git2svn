@@ -7,7 +7,6 @@
 #   -s https://hubzero.org/tools/myrepo/svn/trunk \
 #   -c /www/hub/hubconfiguration.php
 
-
 function svn_checkin {
     echo '... adding files'
     for file in `svn st ${svn_dir} | awk -F" " '{print $1 "|" $2}'`; do
@@ -42,12 +41,12 @@ function svn_commit {
     echo '... committed!'
 }
 
-
 git_repo_url=""
 svn_repo_url=""
 project_name=`mktemp -u XXXXXXXXXX`
 hubconfig=""
-options=":c:g:p:s:"
+t_repos_base="."
+options=":c:g:p:r:s:"
 
 # parse the command line flags and options
 # separate flags from options
@@ -79,9 +78,46 @@ do
       c ) hubconfig=${OPTARG};;
       g ) git_repo_url=${OPTARG};;
       p ) project_name=${OPTARG};;
+      r ) t_repos_base=${OPTARG};;
       s ) svn_repo_url=${OPTARG};;
    esac
 done
+
+
+# exit immediately on error
+set -e
+
+# input validation
+
+# regexp only works with ascii urls
+url_regex='^https?://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]$';
+proj_regex='^[-A-Za-z0-9\+@#/%?=~_|!:,.]+$';
+
+if [[ ! ${git_repo_url} =~ ${url_regex} ]] ; then
+    echo "ERROR: Git repository does not look like a url: ${git_repo_url}";
+    exit 1;
+fi
+
+if [[ ! ${svn_repo_url} =~ ${url_regex} ]] ; then
+    echo "ERROR: Subversion repository does not look like a url: ${svn_repo_url}";
+    exit 2;
+fi
+
+if [[ ! -d ${t_repos_base} ]] ; then
+    echo "ERROR: Temporary repository directory \"${t_repos_base}\" does not exist.";
+    exit 3;
+fi
+
+if [[ ! -r ${hubconfig} ]] ; then
+    echo "ERROR: Hub configuration file \"${hubconfig}\" is not readable";
+    exit 4;
+fi
+
+if [[ ! ${project_name} =~ ${proj_regex} ]] ; then
+    echo "ERROR: Project name contains invalid characters: ${project_name}";
+    exit 5;
+fi
+
 
 # grab the svn username and password from the hub configuration file.
 # these regexps work as long as the strings are single quoted.
@@ -90,16 +126,15 @@ svn_pass=`grep svn_password ${hubconfig} | sed -n "s/^.*'\(.*\)'.*;/\1/p"`;
 svn_auth="--username ${svn_user} --password ${svn_pass}";
 
 base_dir=`pwd`;
-repos_dir=`mktemp -d -p . contribtool.XXXXXXXXXX`;
+repos_dir=`mktemp -d -p ${t_repos_base} contribtool.XXXXXXXXXX`;
 git_dir="${repos_dir}/${project_name}.github";
 svn_dir="${repos_dir}/${project_name}.hubzero";
 
-
 # clone the git repository
-git clone -q ${git_repo_url} ${git_dir};
+git clone -q "${git_repo_url}" ${git_dir};
 
 # check out the svn repository
-svn checkout -q ${svn_repo_url} ${svn_dir};
+svn checkout -q "${svn_repo_url}" ${svn_dir};
 
 # find the latest commit in the git repo
 commit=`cd ${git_dir} && git rev-list --all -n 1 && cd ${base_dir}`;
@@ -129,8 +164,10 @@ do
 done
 
 # Add new files to SVN and commit
-svn_checkin
+svn_checkin;
 svn_commit;
 
 # cleanup temp directories
-rm -rf ${repos_dir}
+rm -rf ${repos_dir};
+
+exit 0;
