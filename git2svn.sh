@@ -5,7 +5,14 @@
 # git2svn.sh \
 #   -g https://github.com/user/myrepo.git \
 #   -s https://hubzero.org/tools/myrepo/svn/trunk \
-#   -c /www/hub/hubconfiguration.php
+#   -c /www/hub
+#
+# if no svn directory is provided, but a project name is,
+# then use hubconfiguration.php to guess at the svn repository name
+# git2svn.sh \
+#   -g https://github.com/user/myrepo.git \
+#   -p myrepo
+#   -c /www/hub
 
 function svn_checkin {
     echo '... adding files'
@@ -44,7 +51,7 @@ function svn_commit {
 git_repo_url=""
 svn_repo_url=""
 project_name=`mktemp -u XXXXXXXXXX`
-hubconfig=""
+hubconfig="."
 t_repos_base="."
 options=":c:g:p:r:s:"
 
@@ -93,24 +100,16 @@ set -e
 url_regex='^https?://[-A-Za-z0-9\+&@#/%?=~_|!:,.;]*[-A-Za-z0-9\+&@#/%=~_|]$';
 proj_regex='^[-A-Za-z0-9\+@#/%?=~_|!:,.]+$';
 
-if [[ ! ${git_repo_url} =~ ${url_regex} ]] ; then
-    echo "ERROR: Git repository does not look like a url: ${git_repo_url}";
-    exit 1;
-fi
-
-if [[ ! ${svn_repo_url} =~ ${url_regex} ]] ; then
-    echo "ERROR: Subversion repository does not look like a url: ${svn_repo_url}";
-    exit 2;
-fi
-
 if [[ ! -d ${t_repos_base} ]] ; then
     echo "ERROR: Temporary repository directory \"${t_repos_base}\" does not exist.";
     exit 3;
 fi
 
-if [[ ! -r ${hubconfig} ]] ; then
-    echo "ERROR: Hub configuration file \"${hubconfig}\" is not readable";
+if [[ ! -r ${hubconfig}/hubconfiguration.php ]] ; then
+    echo "ERROR: Hub configuration file \"${hubconfig}/hubconfiguration.php\" is not readable";
     exit 4;
+else
+    hubconfig="${hubconfig}/hubconfiguration.php"
 fi
 
 if [[ ! ${project_name} =~ ${proj_regex} ]] ; then
@@ -118,6 +117,23 @@ if [[ ! ${project_name} =~ ${proj_regex} ]] ; then
     exit 5;
 fi
 
+if [[ ! ${git_repo_url} =~ ${url_regex} ]] ; then
+    echo "ERROR: Git repository does not look like a url: ${git_repo_url}";
+    exit 1;
+fi
+
+if [[ ! ${svn_repo_url} =~ ${url_regex} ]] ; then
+    if [[ ! ${svn_repo_url} =~ ${proj_regex} ]] ; then
+        echo "ERROR: Subversion repository does not look like a url: ${svn_repo_url}";
+        exit 2;
+    else
+        # looks like the svn_repo_url is a project name
+        # try to guess the repository name from forgeURL
+
+        forgeURL=`grep forgeURL ${hubconfig} | sed -n "s/^.*'\(.*\)'.*;/\1/p"`;
+        svn_repo_url="${forgeURL}/tools/${svn_repo_url}/svn/trunk"
+    fi
+fi
 
 # grab the svn username and password from the hub configuration file.
 # these regexps work as long as the strings are single quoted.
