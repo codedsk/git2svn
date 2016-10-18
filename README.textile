@@ -1,27 +1,19 @@
 h1. git2svn
 
-This is a script to migrate a Git repository to SVN preserving the commits history. This is not something that people will use a lot, but in case you need to do something like this (like I did - don't ask me why), you might want to use this script.
-
-If you don't need to preserve your history, there's a "good guide on Google Code explaining how to migrate in a simpler way":http://code.google.com/p/support/wiki/ImportingFromGit.
+This was a script to migrate a Git repository to SVN preserving the commits history. I updated it to use on HUBzeroas a no hack too cheap way of pulling in data from Git repositories to our internal Subversion repositories. It only pulls the most recent code from the Git repo and no longer preserve all of the commit history. It does clone the Git repository and perform a commit to the Subversion repository using credentials stored in a hubconfiguration.php file that the user can supply the path to.
 
 h2. Usage
 
-1) Clone your Git repository and checkout your SVN repository:
+<pre>./git2svn.sh [options]</pre>
 
-<pre>$ git clone git://github.com/guilhermechapiewski/myrepo.git git_repo
-$ svn checkout https://myrepo.googlecode.com/svn/trunk/ svn_repo</pre>
+h2. Options
+-g <url> - clone the Git repository at https <url>
+-s <url> - commit to the Subversion repository at <url>
+-c <path> - use the credentials stored in the configuration file at <path>
 
-2) Configure *git2svn.sh* variables (*GIT_DIR* and *SVN_DIR*) with locations of both repositories.
-
-3) Run the script from anywhere except one of these two directories.
+Temporary directories will be created, in the pwd, to store the Git and Subversion repositories.
+They will be deleted after a successful commit.
 
 h2. Example
 
-If you want to see an example migration, check the following repositories:
-
-Source: "http://github.com/acarlos1000/MemeiPad/commits/master":http://github.com/acarlos1000/MemeiPad/commits/master
-Destination: "http://code.google.com/p/memeipad/source/list":http://code.google.com/p/memeipad/source/list
-
-h2. Be careful
-
-This script will delete all the files from your SVN repository when the migration of the first commit happens, and will create new revisions based on the commits from the Git repository.
+<pre>./git2svn.sh -g https://github.com/codedsk/helloworld.git -s https://hubzero.org/tools/h20161017/svn/trunk -c ./hubconfiguration.php</pre>
