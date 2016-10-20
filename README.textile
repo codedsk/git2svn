@@ -11,10 +11,13 @@ h2. Options
 -g &lt;url&gt; - clone the Git repository at https &lt;url&gt;
 -s &lt;url&gt; - commit to the Subversion repository at &lt;url&gt;
 -c &lt;path&gt; - use the credentials stored in the configuration file at &lt;path&gt;
+-r &lt;path&gt; - store temporary repositories in the &lt;path&gt;
 
-Temporary directories will be created, in the pwd, to store the Git and Subversion repositories.
+Temporary directories will be created, in the caller's home directory, to store the Git and Subversion repositories.
 They will be deleted after a successful commit.
+If a project name is provided instead of an Subversion repository, the script will make a guess at the subversion repository url.
 
 h2. Example
 
 <pre>./git2svn.sh -g https://github.com/codedsk/helloworld.git -s https://hubzero.org/tools/h20161017/svn/trunk -c ./hubconfiguration.php</pre>
+<pre>./git2svn.sh -g https://github.com/codedsk/helloworld.git -s h20161017 -c ./hubconfiguration.php</pre>
