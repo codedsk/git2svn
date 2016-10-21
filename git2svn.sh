@@ -30,6 +30,7 @@ function svn_checkin {
     debug '... adding files to the Subversion repository';
     # keep looking until we have taken care of all 
     while [ `svn st ${svn_dir} | awk -F" " '{print $1 "|" $2}' | grep '[?!~]|' | wc -l` != "0" ] ; do
+        debug "`svn status ${svn_dir}`"
         for file in `svn st ${svn_dir} | awk -F" " '{print $1 "|" $2}'`; do
             fstatus=`echo ${file} | cut -d"|" -f1`;
             fname=`echo ${file} | cut -d"|" -f2`;
@@ -49,25 +50,10 @@ function svn_checkin {
                 fi
             fi
             if [ "${fstatus}" == "~" ]; then
-                if [[ -d "${fname}" ]] ; then
-                    # svn 1.6 keeps a .svn directory in every directory
-                    # if fname was a directory we removed before we copied
-                    # files from the git repo, we need to put the .svn directory
-                    # back. checkout the directory with --depth immediate
-                    # use POSIX shell foo to strip off the beginning file path
-                    fname_t=`readlink -f ${fname}`;
-                    svn_dir_t=`readlink -f ${svn_dir}`;
-                    svn_fname=${fname_t#${svn_dir_t}};
-                    svn ${svn_opts} checkout ${svn_repo_url}/${svn_fname} --depth immediates --force ${fname};
-                    unset fname_t;
-                    unset svn_dir_t;
-                    unset svn_fname;
-                else
-                    # otherwise, remove the file and 
-                    # pull the old file from the svn repo
-                    rm -rf ${fname};
-                    svn ${svn_opts} up ${fname};
-                fi
+                # otherwise, remove the file and 
+                # pull the old file from the svn repo
+                rm -rf ${fname};
+                svn ${svn_opts} up ${fname};
             fi
         done
     done
@@ -78,6 +64,21 @@ function svn_commit {
     debug "... committing to Subversion -> [${author}]: ${msg}";
     cd ${svn_dir} && svn ${svn_opts} ${svn_auth} commit -m "[${author}]: ${msg}" && cd ${base_dir};
     debug '... committed!';
+}
+
+function svn_clear_repo {
+    debug "... clearing the Subversion repository";
+    cd ${svn_dir};
+    for file in `svn ls` ; do
+        svn ${svn_opts} remove ${file};
+    done
+    unset file;
+    cd ${base_dir};
+}
+
+function cleanup_repos {
+    debug "cleaning up temporary directory ${repos_dir}";
+    rm -rf ${repos_dir};
 }
 
 git_repo_url="";
@@ -195,19 +196,47 @@ svn ${svn_opts} checkout "${svn_repo_url}" ${svn_dir};
 # find the latest commit in the git repo
 commit=`cd ${git_dir} && git rev-list --all -n 1 && cd ${base_dir}`;
 
-debug "querying author information from Git commit ${commit}";
-author=`cd ${git_dir} && git log -n 1 --pretty=format:%an ${commit} && cd ${base_dir}`;
-msg=`cd ${git_dir} && git log -n 1 --pretty=format:%s ${commit} && cd ${base_dir}`;
-
 # Checkout the current commit on git
 debug "... checking out Git commit ${commit}";
 cd ${git_dir} && git checkout ${git_opts} ${commit} && cd ${base_dir};
 
+# check to see if the git commit hash in our svn repository
+# matches the latest git commit hash
+git_commit_file="${svn_dir}/.git-commit"
+if [[ -r ${git_commit_file} ]] ; then
+    if [[ "${commit}" == "`cat ${git_commit_file}`" ]] ; then
+        # commit hashs match
+        # we don't need to update the svn repository
+        debug "Subversion repository already up to date.";
+
+        # cleanup temp directories
+        cleanup_repos;
+
+        debug "exiting...";
+        exit 0;
+    fi
+fi
+
+
 # Delete everything from SVN and copy new files from Git
-# Keep the bare minimum directory structure for hubzero applications
+# with Subversion 1.7+ we can just remove the files from
+# the directory and overwrite them with the files from the
+# Git repository. With Subversion 1.6 and below, we would
+# need to replace all of the .svn directories in the
+# directories we deleted and track down files that were
+# deleted from the Git repositories. It is easier to
+# "svn remove" all files from Subversion repo and "svn add"
+# the files back from the Git repo.
+svn_clear_repo;
+author=${svn_user};
+msg="preparing repo for new version from git"
+svn_commit;
+
 debug "... copying files from Git to Subversion repository";
-rm -rf ${svn_dir}/*;
+#rm -rf ${svn_dir}/*;
 cp -prf ${git_dir}/* ${svn_dir}/;
+
+# Keep the bare minimum directory structure for hubzero applications
 mkdir -p ${svn_dir}/bin \
          ${svn_dir}/data \
          ${svn_dir}/doc \
@@ -216,6 +245,8 @@ mkdir -p ${svn_dir}/bin \
          ${svn_dir}/rappture \
          ${svn_dir}/src;
 
+# update the git-commit hash in the svn repository
+echo ${commit} > ${git_commit_file}
 
 # Remove Git specific files from SVN
 for ignorefile in `find ${svn_dir} | grep .git | grep .gitignore`;
@@ -223,13 +254,16 @@ do
     rm -rf ${ignorefile};
 done
 
-# Add new files to SVN and commit
+# Add new files to SVN commit
 svn_checkin;
+
+debug "querying author information from Git commit ${commit}";
+author=`cd ${git_dir} && git log -n 1 --pretty=format:%an ${commit} && cd ${base_dir}`;
+msg=`cd ${git_dir} && git log -n 1 --pretty=format:%s ${commit} && cd ${base_dir}`;
 svn_commit;
 
 # cleanup temp directories
-debug "cleaning up temporary directory ${repos_dir}";
-rm -rf ${repos_dir};
+cleanup_repos
 
 debug "exiting...";
 exit 0;
