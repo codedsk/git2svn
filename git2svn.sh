@@ -87,7 +87,7 @@ hubconfig=".";
 verbose="False";
 t_repos_base="${HOME}";
 svn_opt_quiet="-q";
-svn_opts="";
+svn_opts="--non-interactive --trust-server-cert";
 git_opt_quiet="-q";
 git_opts="";
 options=":c:g:p:r:s:v";
@@ -191,7 +191,7 @@ git clone ${git_opts} "${git_repo_url}" ${git_dir};
 
 # check out the svn repository
 debug "checking out the Subversion repository ${svn_repo_url}";
-svn ${svn_opts} checkout "${svn_repo_url}" ${svn_dir};
+svn ${svn_opts} ${svn_auth} checkout "${svn_repo_url}" ${svn_dir};
 
 # find the latest commit in the git repo
 commit=`cd ${git_dir} && git rev-list --all -n 1 && cd ${base_dir}`;
